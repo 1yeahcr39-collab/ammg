@@ -34,13 +34,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = useCallback(async (name, email, password) => {
+  const register = useCallback(async (name, email, password, role = 'user') => {
     setError(null);
     try {
       const response = await axios.post('/register', {
         name,
         email,
-        password
+        password,
+        role
       });
       return response.data;
     } catch (err) {

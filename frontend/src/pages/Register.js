@@ -12,7 +12,8 @@ function Register() {
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    role: 'user'  // Default to user, can select admin
   });
 
   const handleChange = (e) => {
@@ -55,7 +56,7 @@ function Register() {
         return;
       }
 
-      await register(formData.name, formData.email, formData.password);
+      await register(formData.name, formData.email, formData.password, formData.role);
       // Navigate to login after successful registration
       navigate('/login', { state: { message: 'Registration successful! Please login.' } });
     } catch (err) {
@@ -133,6 +134,34 @@ function Register() {
               required
               disabled={loading}
             />
+          </div>
+
+          <div className="form-group">
+            <label>Account Type</label>
+            <div className="role-options">
+              <label className="role-label">
+                <input
+                  type="radio"
+                  name="role"
+                  value="user"
+                  checked={formData.role === 'user'}
+                  onChange={handleChange}
+                  disabled={loading}
+                />
+                <span>User (Can upload & view meetings)</span>
+              </label>
+              <label className="role-label">
+                <input
+                  type="radio"
+                  name="role"
+                  value="admin"
+                  checked={formData.role === 'admin'}
+                  onChange={handleChange}
+                  disabled={loading}
+                />
+                <span>Admin (Access to all users & analytics)</span>
+              </label>
+            </div>
           </div>
 
           <button type="submit" className="submit-btn" disabled={loading}>

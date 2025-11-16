@@ -1,3 +1,73 @@
+
+---
+
+## 🎯 ROLE-BASED USER SYSTEM (NEW)
+
+### Quick Start
+```
+1. Start Backend: python backend/app.py
+2. Start Frontend: npm start (in frontend/)
+3. Register as User → Dashboard (no admin features)
+4. Register as Admin → Dashboard + Admin buttons
+```
+
+### Registration Types
+
+**Regular User**
+- Select: "User (Can upload & view meetings)"
+- Access: Dashboard, upload audio
+- Cannot: View admin panel, see other users
+
+**Admin User**
+- Select: "Admin (Access to all users & analytics)"
+- Access: Everything + admin dashboard
+- Can: View all users, logs, analytics
+
+### Admin Dashboard Features
+- 👥 **Users Management**: View all registered users
+- 📋 **System Logs**: View system activity logs
+- 📊 **Analytics**: Key metrics (users, admins, transcriptions)
+
+### Admin Button
+- Regular users: NO admin buttons
+- Admin users: 🛡️ Admin Dashboard button visible
+
+### Database
+```javascript
+// User role stored in MongoDB
+{
+  name: "User Name",
+  email: "user@email.com",
+  role: "user"  // or "admin"
+}
+```
+
+### API
+```bash
+# Registration with role
+curl -X POST http://localhost:5000/register \
+  -d '{"name":"John","email":"john@email.com","password":"pass","role":"user"}'
+
+# Login returns role
+curl -X POST http://localhost:5000/login \
+  -d '{"email":"john@email.com","password":"pass"}'
+# Response: {"token":"...", "user":{"role":"user"}}
+```
+
+### Create Admin via CLI
+```bash
+python scripts/create_admin.py \
+  --email admin@email.com \
+  --name "Admin Name" \
+  --password "password123"
+```
+
+### Documentation Files
+- `ROLE_BASED_SYSTEM.md` - Full implementation details
+- `TESTING_GUIDE.md` - 8 comprehensive test cases
+- `IMPLEMENTATION_SUMMARY.md` - Project overview
+
+
 # ⚡ Quick Reference - Local Setup
 
 ## One-Page Cheat Sheet

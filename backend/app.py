@@ -275,6 +275,11 @@ def register():
     email = data.get("email").lower()
     password = data.get("password")
     name = data.get("name")
+    role = data.get("role", "user").lower()  # Default to "user", allow "admin"
+    
+    # Validate role
+    if role not in ["user", "admin"]:
+        return jsonify({"error": "Role must be 'user' or 'admin'"}), 400
     
     # Check if user already exists
     if USE_MONGO:
@@ -300,6 +305,7 @@ def register():
         "name": name,
         "email": email,
         "password": hashed_password,
+        "role": role,
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow()
     }
@@ -365,10 +371,11 @@ def login():
     if not bcrypt.checkpw(password.encode('utf-8'), stored_pw):
         return jsonify({"error": "Invalid email or password"}), 401
     
-    # Generate JWT token
+    # Generate JWT token (include role for frontend to read)
     token = jwt.encode({
         'user_id': str(user['_id']),
         'email': user['email'],
+        'role': user.get('role', 'user'),
         'exp': datetime.utcnow() + timedelta(hours=24)
     }, app.config['SECRET_KEY'], algorithm='HS256')
     
@@ -378,7 +385,8 @@ def login():
         "user": {
             "id": str(user['_id']),
             "name": user['name'],
-            "email": user['email']
+            "email": user['email'],
+            "role": user.get('role', 'user')
         }
     }), 200
 

@@ -219,9 +219,14 @@ function Dashboard() {
         <div className="header-right">
           <span className="user-info">👤 {user?.full_name || user?.name}</span>
           {user?.role === 'admin' && (
-            <button onClick={() => navigate('/analytics')} className="admin-btn">
-              📊 Analytics
-            </button>
+            <>
+              <button onClick={() => navigate('/admin')} className="admin-btn">
+                🛡️ Admin Dashboard
+              </button>
+              <button onClick={() => navigate('/analytics')} className="admin-btn">
+                📊 Analytics
+              </button>
+            </>
           )}
           <button onClick={handleLogout} className="logout-btn">
             Logout
