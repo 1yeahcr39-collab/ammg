@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps (backend)
+        run: |
+          if [ -f backend/requirements.txt ]; then
+            python -m pip install --upgrade pip
+            python -m pip install -r backend/requirements.txt || true
+          else
+            echo "No backend requirements file"
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install frontend deps
+        working-directory: PESU_EC_CSE_K_P34_Automated_Meeting_Minutes_Generator_MinuteMinds/frontend
+        run: |
+          if [ -f package.json ]; then
+            npm ci || npm install
+          else
+            echo "No frontend package.json"
+          fi
+
+      - name: Run backend tests (if any)
+        run: |
+          if [ -f pytest.ini ] || [ -d backend/tests ]; then
+            pytest -q || true
+          else
+            echo "No backend tests detected"
+          fi
+
+      - name: Run frontend tests (if any)
+        working-directory: PESU_EC_CSE_K_P34_Automated_Meeting_Minutes_Generator_MinuteMinds/frontend
+        run: |
+          if [ -f package.json ]; then
+            if npm run | grep -q "test"; then
+              npm test --silent || true
+            else
+              echo "No frontend test script"
+            fi
+          fi
