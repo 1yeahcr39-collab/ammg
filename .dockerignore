@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+build
+.env.local
+.env.*.local
+yarn-error.log
+.DS_Store
+.venv
+__pycache__
+*.pyc
+.git
+.gitignore
+README.md
+.dockerignore

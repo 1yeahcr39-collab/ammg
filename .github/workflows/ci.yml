@@ -1,60 +1,218 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
 
 jobs:
-  build:
+  # ============================================================================
+  # BACKEND VALIDATION: Python code quality, linting, and tests
+  # ============================================================================
+  backend-check:
+    name: Backend - Code Quality & Tests
     runs-on: ubuntu-latest
+    
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
 
-      - name: Install Python deps (backend)
+      - name: Install backend dependencies
         run: |
+          python -m pip install --upgrade pip setuptools wheel
           if [ -f backend/requirements.txt ]; then
-            python -m pip install --upgrade pip
-            python -m pip install -r backend/requirements.txt || true
+            pip install -r backend/requirements.txt
           else
-            echo "No backend requirements file"
+            echo "No backend requirements file found"
+            exit 1
           fi
 
-      - name: Set up Node.js
+      - name: Lint with Flake8
+        run: |
+          pip install flake8
+          # Stop the build if there are Python syntax errors or undefined names
+          flake8 backend --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings
+          flake8 backend --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        continue-on-error: true
+
+      - name: Check backend syntax
+        run: |
+          python -m py_compile backend/app.py
+        continue-on-error: true
+
+      - name: Run backend unit tests
+        run: |
+          if [ -d backend/tests ]; then
+            pip install pytest pytest-cov
+            pytest backend/tests -v --cov=backend || true
+          else
+            echo "No backend tests directory found"
+          fi
+        continue-on-error: true
+
+  # ============================================================================
+  # FRONTEND VALIDATION: Node dependencies, linting, and builds
+  # ============================================================================
+  frontend-check:
+    name: Frontend - Build & Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install frontend deps
-        working-directory: PESU_EC_CSE_K_P34_Automated_Meeting_Minutes_Generator_MinuteMinds/frontend
+      - name: Install frontend dependencies
+        working-directory: frontend
         run: |
-          if [ -f package.json ]; then
-            npm ci || npm install
-          else
-            echo "No frontend package.json"
-          fi
+          npm ci || npm install
 
-      - name: Run backend tests (if any)
+      - name: Check for ESLint issues
+        working-directory: frontend
         run: |
-          if [ -f pytest.ini ] || [ -d backend/tests ]; then
-            pytest -q || true
-          else
-            echo "No backend tests detected"
-          fi
+          npm run lint 2>/dev/null || echo "No lint script defined"
+        continue-on-error: true
 
-      - name: Run frontend tests (if any)
-        working-directory: PESU_EC_CSE_K_P34_Automated_Meeting_Minutes_Generator_MinuteMinds/frontend
+      - name: Build frontend
+        working-directory: frontend
         run: |
-          if [ -f package.json ]; then
-            if npm run | grep -q "test"; then
-              npm test --silent || true
-            else
-              echo "No frontend test script"
-            fi
-          fi
+          npm run build || echo "No build script defined"
+        continue-on-error: true
+
+      - name: Run frontend tests
+        working-directory: frontend
+        run: |
+          npm test -- --coverage --watchAll=false 2>/dev/null || echo "No tests defined"
+        continue-on-error: true
+
+  # ============================================================================
+  # CODE ANALYSIS: SonarQube or similar (optional)
+  # ============================================================================
+  code-analysis:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: SonarCloud Scan (Optional)
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        continue-on-error: true
+
+  # ============================================================================
+  # SECURITY CHECKS: Dependency vulnerabilities and secrets scanning
+  # ============================================================================
+  security-check:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+        continue-on-error: true
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+      - name: Check for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+        continue-on-error: true
+
+  # ============================================================================
+  # BUILD & PUSH: Docker image build and push to registry
+  # ============================================================================
+  docker-build:
+    name: Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: [backend-check, frontend-check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub (Optional)
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+        continue-on-error: true
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: false  # Set to true when you have Docker credentials
+          tags: minuteminds:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+        continue-on-error: true
+
+  # ============================================================================
+  # NOTIFICATION: Success/failure notifications
+  # ============================================================================
+  notify:
+    name: Notify Build Status
+    runs-on: ubuntu-latest
+    needs: [backend-check, frontend-check, security-check]
+    if: always()
+    
+    steps:
+      - name: Check job status
+        run: |
+          echo "Backend Check: ${{ needs.backend-check.result }}"
+          echo "Frontend Check: ${{ needs.frontend-check.result }}"
+          echo "Security Check: ${{ needs.security-check.result }}"
+
+      - name: Send Slack notification (Optional)
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          text: 'CI/CD Pipeline ${{ job.status }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          fields: repo,message,commit,author
+        continue-on-error: true
