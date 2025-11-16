@@ -1,0 +1,17 @@
+flask
+flask-cors
+openai-whisper
+werkzeug
+pymongo
+requests
+python-dotenv
+PyJWT
+bcrypt
+transformers
+torch
+noisereduce
+librosa
+soundfile
+python-docx
+pillow
+spacy
